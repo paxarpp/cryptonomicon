@@ -17,14 +17,25 @@
                 id="wallet"
                 class="block w-full pr-10 border-gray-300 text-gray-900 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm rounded-md"
                 placeholder="Например DOGE"
+                @input="clearError"
               />
             </div>
-            <div class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap">
-              <span v-for="chip in getChips" :key="chip.FullName" class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
-                {{ chip.FullName}}
+            <div
+              v-if="getChips.length > 0"
+              class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
+            >
+              <span
+                v-for="chip in getChips"
+                :key="chip.FullName"
+                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
+                @click="addChip(chip.FullName)"
+              >
+                {{ chip.FullName }}
               </span>
             </div>
-            <div class="text-sm text-red-600">Такой тикер уже добавлен</div>
+            <div v-if="error" class="text-sm text-red-600">
+              Такой тикер уже добавлен
+            </div>
           </div>
         </div>
         <button
@@ -68,7 +79,7 @@
                 {{ t.price }}
               </dd>
             </div>
-            <div class="w-full border-t border-gray-200"></div>
+            <div class="w-full border-t border-gray-200"/>
             <button
               @click.stop="handleDelete(t)"
               class="flex items-center justify-center font-medium w-full bg-gray-100 px-4 py-4 sm:px-6 text-md text-gray-500 hover:text-gray-600 hover:bg-gray-200 hover:opacity-20 transition-all focus:outline-none"
@@ -101,7 +112,7 @@
             :key="idx"
             :style="{ height: `${bar}%` }"
             class="bg-purple-800 border w-10"
-          ></div>
+          />
         </div>
         <button
           @click="sel = null"
@@ -142,10 +153,11 @@ export default {
   data() {
     return {
       ticker: "",
+      error: false,
       tickers: [],
-      // chips: [],
       tickersAll: [],
       sel: null,
+      intervalId: null,
       graph: []
     };
   },
@@ -155,43 +167,55 @@ export default {
   },
   computed: {
     getChips() {
+      const regexp = RegExp(this.ticker, "i");
       return this.tickersAll
-        .filter((t) => this.ticker && (t.FullName.includes(this.ticker) || t.Symbol.includes(this.ticker)))
+        .filter(
+          t => this.ticker && (regexp.test(t.FullName) || regexp.test(t.Symbol))
+        )
         .filter((_, index) => index < 4);
     }
   },
   methods: {
-    createChips() {
-      this.chips = this.tickersAll
-        .filter((t) => this.ticker && (t.FullName.includes(this.ticker) || t.Symbol.includes(this.ticker)))
-        .filter((_, index) => index < 4);
-    },
     async getList() {
-      const resp = await fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true');
+      const resp = await fetch(
+        "https://min-api.cryptocompare.com/data/all/coinlist?summary=true"
+      );
       const answer = await resp.json();
       this.tickersAll = Object.values(answer.Data);
+    },
+    clearError() {
+      this.error = false;
     },
     add() {
       const currentTicker = {
         name: this.ticker,
         price: "-"
       };
+      if (this.tickers.find(t => t.name === currentTicker.name)) {
+        this.error = true;
+      } else {
+        this.tickers.push(currentTicker);
+        this.intervalId = setInterval(async () => {
+          const f = await fetch(
+            `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=ce3fd966e7a1d10d65f907b20bf000552158fd3ed1bd614110baa0ac6cb57a7e`
+          );
+          const data = await f.json();
 
-      this.tickers.push(currentTicker);
-      setInterval(async () => {
-        const f = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=ce3fd966e7a1d10d65f907b20bf000552158fd3ed1bd614110baa0ac6cb57a7e`
-        );
-        const data = await f.json();
+          this.tickers.find(t => t.name === currentTicker.name).price =
+            data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
 
-        this.tickers.find(t => t.name === currentTicker.name).price =
-          data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+          if (this.sel?.name === currentTicker.name) {
+            this.graph.push(data.USD);
+          }
+        }, 5000);
+        this.ticker = "";
+        this.error = false;
+      }
+    },
 
-        if (this.sel?.name === currentTicker.name) {
-          this.graph.push(data.USD);
-        }
-      }, 5000);
-      this.ticker = "";
+    addChip(name) {
+      this.ticker = name;
+      this.add();
     },
 
     select(ticker) {
@@ -201,6 +225,9 @@ export default {
 
     handleDelete(tickerToRemove) {
       this.tickers = this.tickers.filter(t => t !== tickerToRemove);
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+      }
     },
 
     normalizeGraph() {

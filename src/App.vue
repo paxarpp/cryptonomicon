@@ -53,7 +53,7 @@
           >
             <path
               d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"
-            ></path>
+            />
           </svg>
           Добавить
         </button>
@@ -67,7 +67,7 @@
             :key="t.name"
             @click="select(t)"
             :class="{
-              'border-4': sel === t
+              'border-4': sel === t && !t.error
             }"
             class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
           >
@@ -77,6 +77,9 @@
               </dt>
               <dd class="mt-1 text-3xl font-semibold text-gray-900">
                 {{ t.price }}
+              </dd>
+              <dd v-if="t.error" class="text-sm text-red-600">
+                {{ t.error }}
               </dd>
             </div>
             <div class="w-full border-t border-gray-200"/>
@@ -157,7 +160,6 @@ export default {
       tickers: [],
       tickersAll: [],
       sel: null,
-      intervalId: null,
       graph: []
     };
   },
@@ -167,7 +169,7 @@ export default {
   },
   computed: {
     getChips() {
-      const regexp = RegExp(this.ticker, "i");
+      const regexp = new RegExp(this.ticker, "i");
       return this.tickersAll
         .filter(
           t => this.ticker && (regexp.test(t.FullName) || regexp.test(t.Symbol))
@@ -189,23 +191,35 @@ export default {
     add() {
       const currentTicker = {
         name: this.ticker,
-        price: "-"
+        price: "-",
+        error: "",
+        intervalId: ""
       };
       if (this.tickers.find(t => t.name === currentTicker.name)) {
         this.error = true;
       } else {
         this.tickers.push(currentTicker);
-        this.intervalId = setInterval(async () => {
-          const f = await fetch(
-            `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=ce3fd966e7a1d10d65f907b20bf000552158fd3ed1bd614110baa0ac6cb57a7e`
-          );
-          const data = await f.json();
+        const intervalId = setInterval(async () => {
+          try {
+            const f = await fetch(
+              `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=ce3fd966e7a1d10d65f907b20bf000552158fd3ed1bd614110baa0ac6cb57a7e`
+            );
+            const data = await f.json();
+            if (data?.Response !== 'Error') {
+              const index = this.tickers.findIndex(t => t.name === currentTicker.name);
+              this.tickers[index].price =
+                data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+              this.tickers[index].intervalId = intervalId;
 
-          this.tickers.find(t => t.name === currentTicker.name).price =
-            data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
-
-          if (this.sel?.name === currentTicker.name) {
-            this.graph.push(data.USD);
+              if (this.sel?.name === currentTicker.name) {
+                this.graph.push(data.USD);
+              }
+            } else if (data?.Message) {
+              this.tickers.find(t => t.name === currentTicker.name).error =
+                data.Message;
+            }
+          } catch (e) {
+            console.error(e);
           }
         }, 5000);
         this.ticker = "";
@@ -219,14 +233,17 @@ export default {
     },
 
     select(ticker) {
-      this.sel = ticker;
-      this.graph = [];
+      if (!ticker.error) {
+        this.sel = ticker;
+        this.graph = [];
+      }
     },
 
     handleDelete(tickerToRemove) {
       this.tickers = this.tickers.filter(t => t !== tickerToRemove);
-      if (this.intervalId) {
-        clearInterval(this.intervalId);
+      clearInterval(tickerToRemove.intervalId);
+      if (this.sel.name === tickerToRemove.name) {
+        this.sel = null;
       }
     },
 

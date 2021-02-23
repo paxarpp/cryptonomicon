@@ -19,6 +19,12 @@
                 placeholder="Например DOGE"
               />
             </div>
+            <div class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap">
+              <span v-for="chip in getChips" :key="chip.FullName" class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer">
+                {{ chip.FullName}}
+              </span>
+            </div>
+            <div class="text-sm text-red-600">Такой тикер уже добавлен</div>
           </div>
         </div>
         <button
@@ -137,12 +143,34 @@ export default {
     return {
       ticker: "",
       tickers: [],
+      // chips: [],
+      tickersAll: [],
       sel: null,
       graph: []
     };
   },
 
+  mounted() {
+    this.getList();
+  },
+  computed: {
+    getChips() {
+      return this.tickersAll
+        .filter((t) => this.ticker && (t.FullName.includes(this.ticker) || t.Symbol.includes(this.ticker)))
+        .filter((_, index) => index < 4);
+    }
+  },
   methods: {
+    createChips() {
+      this.chips = this.tickersAll
+        .filter((t) => this.ticker && (t.FullName.includes(this.ticker) || t.Symbol.includes(this.ticker)))
+        .filter((_, index) => index < 4);
+    },
+    async getList() {
+      const resp = await fetch('https://min-api.cryptocompare.com/data/all/coinlist?summary=true');
+      const answer = await resp.json();
+      this.tickersAll = Object.values(answer.Data);
+    },
     add() {
       const currentTicker = {
         name: this.ticker,
@@ -156,7 +184,6 @@ export default {
         );
         const data = await f.json();
 
-        // currentTicker.price =  data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
         this.tickers.find(t => t.name === currentTicker.name).price =
           data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
 

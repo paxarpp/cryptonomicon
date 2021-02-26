@@ -82,7 +82,7 @@
                 {{ t.error }}
               </dd>
             </div>
-            <div class="w-full border-t border-gray-200"/>
+            <div class="w-full border-t border-gray-200" />
             <button
               @click.stop="handleDelete(t)"
               class="flex items-center justify-center font-medium w-full bg-gray-100 px-4 py-4 sm:px-6 text-md text-gray-500 hover:text-gray-600 hover:bg-gray-200 hover:opacity-20 transition-all focus:outline-none"
@@ -205,8 +205,10 @@ export default {
               `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=ce3fd966e7a1d10d65f907b20bf000552158fd3ed1bd614110baa0ac6cb57a7e`
             );
             const data = await f.json();
-            if (data?.Response !== 'Error') {
-              const index = this.tickers.findIndex(t => t.name === currentTicker.name);
+            if (data?.Response !== "Error") {
+              const index = this.tickers.findIndex(
+                t => t.name === currentTicker.name
+              );
               this.tickers[index].price =
                 data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
               this.tickers[index].intervalId = intervalId;
@@ -250,9 +252,11 @@ export default {
     normalizeGraph() {
       const maxValue = Math.max(...this.graph);
       const minValue = Math.min(...this.graph);
-      return this.graph.map(
-        price => 5 + ((price - minValue) * 95) / (maxValue - minValue)
-      );
+      return maxValue === minValue
+        ? 50
+        : this.graph.map(
+            price => 5 + ((price - minValue) * 95) / (maxValue - minValue)
+          );
     }
   }
 };
